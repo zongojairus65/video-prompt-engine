@@ -86,5 +86,6 @@ USER VIDEO INSTRUCTION:
 
         except Exception as error:
             raise RuntimeError(
-                f"Invalid Gemma Scene response: {error}"
+                f"Invalid Gemma Scene response: {error} | raw={data}"
             )
+
