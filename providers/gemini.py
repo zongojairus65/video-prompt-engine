@@ -1,0 +1,79 @@
+import os
+import json
+import requests
+
+from models.scene import Scene
+
+
+class GeminiSceneParser:
+    def __init__(self):
+        self.api_key = os.getenv("GEMINI_API_KEY")
+        self.model = "gemini-flash-latest"
+        self.url = (
+            f"https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{self.model}:generateContent"
+        )
+
+    def parse(self, prompt: str) -> Scene:
+        if not self.api_key:
+            raise ValueError("GEMINI_API_KEY is not configured")
+
+        system_prompt = """
+You are a professional cinematic video prompt parser.
+
+Convert the user's short video instruction into a structured Scene.
+
+Extract:
+- subjects
+- actions
+- dialogue
+- camera
+- environment
+- animation
+- technical parameters
+- voice characteristics
+
+Never invent unnecessary story elements.
+Preserve the user's original intent.
+Return ONLY valid JSON matching the Scene schema.
+"""
+
+        payload = {
+            "system_instruction": {
+                "parts": [{"text": system_prompt}]
+            },
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [{"text": prompt}]
+                }
+            ],
+            "generationConfig": {
+                "temperature": 0.1,
+                "responseMimeType": "application/json"
+            }
+        }
+
+        response = requests.post(
+            self.url,
+            params={"key": self.api_key},
+            json=payload,
+            timeout=60
+        )
+
+        if response.status_code != 200:
+            raise RuntimeError(
+                f"Gemini API error: {response.status_code} "
+                f"{response.text}"
+            )
+
+        data = response.json()
+
+        try:
+            text = data["candidates"][0]["content"]["parts"][0]["text"]
+            scene_data = json.loads(text)
+            return Scene.model_validate(scene_data)
+        except Exception as error:
+            raise RuntimeError(
+                f"Invalid Gemini Scene response: {error}"
+            )
