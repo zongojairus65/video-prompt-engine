@@ -3,8 +3,9 @@ import uuid
 
 from core.cache import PromptCache
 from core.logging import get_logger
-from providers.mistral import MistralSceneParser
+from providers.router import SceneParserRouter
 from compiler.motion_engine import MotionEngine
+from compiler.audio_engine import AudioEngine
 from compiler.prompt_compiler import VideoPromptCompiler
 from compiler.prompt_optimizer import PromptOptimizer
 from evaluation.evaluation_engine import EvaluationEngine
@@ -17,8 +18,9 @@ logger = get_logger(__name__)
 class VideoPromptPipeline:
 
     def __init__(self):
-        self.parser = MistralSceneParser()
+        self.parser = SceneParserRouter()
         self.motion_engine = MotionEngine()
+        self.audio_engine = AudioEngine()
         self.compiler = VideoPromptCompiler()
         self.optimizer = PromptOptimizer()
         self.evaluator = EvaluationEngine()
@@ -62,6 +64,7 @@ class VideoPromptPipeline:
         scene = self.parser.parse(user_prompt)
 
         scene = self.motion_engine.enrich(scene)
+        scene = self.audio_engine.enrich(scene)
 
         technical_prompt = self.compiler.compile(scene)
 

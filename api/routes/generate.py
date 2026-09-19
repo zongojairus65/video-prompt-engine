@@ -3,9 +3,12 @@ from pydantic import BaseModel
 
 from models.scene import Scene
 from services.pipeline import VideoPromptPipeline
+from database.repository import save_generation
+from core.logging import get_logger
 
 
 router = APIRouter()
+logger = get_logger(__name__)
 
 pipeline = VideoPromptPipeline()
 
@@ -31,10 +34,21 @@ def generate_prompt(request: PromptRequest):
         if not request.prompt.strip():
             raise ValueError("The video prompt cannot be empty.")
 
-        return pipeline.run(
+        result = pipeline.run(
             request.prompt,
             request.generator
         )
+
+        try:
+            save_generation(result)
+        except Exception as db_error:
+            logger.warning(
+                "Failed to persist generation | request_id=%s | error=%s",
+                result.get("request_id"),
+                db_error
+            )
+
+        return result
 
     except ValueError as error:
         raise HTTPException(
