@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.openapi.docs import get_swagger_ui_html
 from pydantic import BaseModel
 
 from models.scene import Scene
@@ -9,7 +10,9 @@ from compiler.prompt_compiler import VideoPromptCompiler
 app = FastAPI(
     title="Video Prompt Engine",
     description="AI-powered technical video prompt generation engine",
-    version="0.4.0"
+    version="0.4.0",
+    docs_url=None,
+    redoc_url=None
 )
 
 
@@ -34,6 +37,16 @@ def root():
         "version": "0.4.0",
         "status": "online"
     }
+
+
+@app.get("/docs", include_in_schema=False)
+def custom_docs():
+    return get_swagger_ui_html(
+        openapi_url=app.openapi_url,
+        title="Video Prompt Engine - API Docs",
+        swagger_js_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js",
+        swagger_css_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css",
+    )
 
 
 @app.post("/generate", response_model=PromptResponse)
