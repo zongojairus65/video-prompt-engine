@@ -3,6 +3,7 @@ import json
 import requests
 
 from models.scene import Scene
+from providers.schema import SCENE_RESPONSE_SCHEMA
 
 
 class GemmaSceneParser:
@@ -28,25 +29,14 @@ Extract:
 - actions
 - dialogue
 - camera
-- environment
+- environment (location, time_of_day, weather when mentioned)
 - animation
 - technical parameters
 - voice characteristics
 
 Preserve the user's original intent.
 Do not invent unnecessary story elements.
-If information is not specified, use reasonable neutral defaults.
-
-Return ONLY a single valid JSON object matching the Scene schema below.
-Do NOT wrap it in an array, even for a single scene.
-Do NOT include any reasoning, explanation, or markdown fences.
-
-Top-level fields (use exactly these keys):
-subjects, actions, dialogue, camera, environment, animation, technical
-
-For environment, extract location, time_of_day (e.g. day, night,
-dusk, dawn) and weather (e.g. rain, light rain, clear, fog, snow)
-whenever explicitly mentioned. Do not invent them if not mentioned.
+If a field is unknown, omit it entirely instead of setting it to null.
 """
 
         full_prompt = f"""
@@ -70,9 +60,7 @@ USER VIDEO INSTRUCTION:
             "generationConfig": {
                 "temperature": 0.1,
                 "responseMimeType": "application/json",
-                "thinkingConfig": {
-                    "thinkingLevel": "low"
-                }
+                "responseSchema": SCENE_RESPONSE_SCHEMA
             }
         }
 
