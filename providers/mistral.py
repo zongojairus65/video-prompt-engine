@@ -4,7 +4,7 @@ from mistralai.client import Mistral
 from config import get_settings
 from models.scene import Scene
 
-MODEL = "mistral-large-latest"
+MODEL = "mistral-medium-latest"
 
 SYSTEM_PROMPT = """
 You are the Scene Parser of a professional AI video prompt engine.
