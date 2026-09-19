@@ -101,6 +101,12 @@ class VideoPromptCompiler:
         if environment.location:
             parts.append(f"location={environment.location}")
 
+        if environment.time_of_day:
+            parts.append(f"time_of_day={environment.time_of_day}")
+
+        if environment.weather:
+            parts.append(f"weather={environment.weather}")
+
         if environment.description:
             parts.append(environment.description)
 

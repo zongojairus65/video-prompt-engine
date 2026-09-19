@@ -59,6 +59,8 @@ class SemanticFidelityEngine:
         parts.append(
             "environment: "
             f"{environment.location or ''} "
+            f"{environment.time_of_day or ''} "
+            f"{environment.weather or ''} "
             f"{environment.description or ''}"
         )
 

@@ -46,6 +46,8 @@ class Camera(BaseModel):
 class Environment(BaseModel):
     location: Optional[str] = None
     description: Optional[str] = None
+    time_of_day: Optional[str] = None
+    weather: Optional[str] = None
     background_motion: float = Field(default=0.0, ge=0.0, le=1.0)
 
 

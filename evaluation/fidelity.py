@@ -92,12 +92,18 @@ class FidelityEngine:
         return matches / requested if requested else 1.0
 
     def _environment_score(self, text: str, scene: Scene) -> float:
-        if not scene.environment.location and not scene.environment.description:
+        environment_fields = (
+            scene.environment.location,
+            scene.environment.description,
+            scene.environment.time_of_day,
+            scene.environment.weather,
+        )
+
+        if not any(environment_fields):
             return 1.0
 
-        environment = (
-            f"{scene.environment.location or ''} "
-            f"{scene.environment.description or ''}"
+        environment = " ".join(
+            field or "" for field in environment_fields
         ).lower()
 
         words = self._keywords(environment)

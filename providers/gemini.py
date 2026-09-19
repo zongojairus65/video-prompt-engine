@@ -42,6 +42,10 @@ Do NOT include any reasoning, explanation, or markdown fences.
 
 Top-level fields (use exactly these keys):
 subjects, actions, dialogue, camera, environment, animation, technical
+
+For environment, extract location, time_of_day (e.g. day, night,
+dusk, dawn) and weather (e.g. rain, light rain, clear, fog, snow)
+whenever explicitly mentioned. Do not invent them if not mentioned.
 """
 
         payload = {

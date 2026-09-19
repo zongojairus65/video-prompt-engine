@@ -16,6 +16,10 @@ IMPORTANT:
 - Do not invent story elements.
 - Extract explicit subjects, actions, dialogue, camera instructions,
   environment, animation and audio/voice instructions.
+- For environment, extract location, time_of_day (e.g. day, night,
+  dusk, dawn) and weather (e.g. rain, light rain, clear, fog, snow)
+  whenever the user's instruction mentions them explicitly. Do not
+  invent them if not mentioned.
 - For dialogue, extract voice type, gender, speed/rate, pitch, tone,
   emotion, accent and language when explicitly provided.
 - Preserve explicit voice speed values such as 1.3x exactly.
