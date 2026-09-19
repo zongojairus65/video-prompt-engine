@@ -4,3 +4,4 @@ pydantic
 pydantic-settings
 mistralai
 sqlalchemy
+requests>=2.32,<3
