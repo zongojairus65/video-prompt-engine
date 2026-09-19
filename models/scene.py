@@ -1,6 +1,6 @@
-from typing import List, Optional
+from typing import Any, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class VoiceProfile(BaseModel):
@@ -71,3 +71,27 @@ class Scene(BaseModel):
     environment: Environment = Field(default_factory=Environment)
     animation: Animation = Field(default_factory=Animation)
     technical: Technical = Field(default_factory=Technical)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_nulls(cls, data: Any) -> Any:
+        """LLM providers sometimes emit explicit `null` for an empty
+        field instead of omitting it or using [] / {}. Pydantic only
+        applies default_factory when the key is absent, not when it
+        is present with a null value, so we normalize here before
+        validation instead of trusting every provider to be strict."""
+        if not isinstance(data, dict):
+            return data
+
+        list_fields = ("subjects", "actions", "dialogue")
+        object_fields = ("camera", "environment", "animation", "technical")
+
+        for field in list_fields:
+            if data.get(field) is None:
+                data[field] = []
+
+        for field in object_fields:
+            if data.get(field) is None:
+                data[field] = {}
+
+        return data

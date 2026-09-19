@@ -37,7 +37,12 @@ Preserve the user's original intent.
 Do not invent unnecessary story elements.
 If information is not specified, use reasonable neutral defaults.
 
-Return ONLY valid JSON matching the Scene schema.
+Return ONLY a single valid JSON object matching the Scene schema below.
+Do NOT wrap it in an array, even for a single scene.
+Do NOT include any reasoning, explanation, or markdown fences.
+
+Top-level fields (use exactly these keys):
+subjects, actions, dialogue, camera, environment, animation, technical
 """
 
         full_prompt = f"""
@@ -60,7 +65,10 @@ USER VIDEO INSTRUCTION:
             ],
             "generationConfig": {
                 "temperature": 0.1,
-                "responseMimeType": "application/json"
+                "responseMimeType": "application/json",
+                "thinkingConfig": {
+                    "thinkingLevel": "low"
+                }
             }
         }
 
@@ -80,12 +88,36 @@ USER VIDEO INSTRUCTION:
         data = response.json()
 
         try:
-            text = data["candidates"][0]["content"]["parts"][0]["text"]
+            candidate = data["candidates"][0]
+            parts = candidate["content"]["parts"]
+
+            # Gemma's "thinking" traces are returned as separate
+            # parts flagged thought=True. The actual answer is the
+            # first part that isn't a thought.
+            text = next(
+                (
+                    part["text"]
+                    for part in parts
+                    if part.get("text") and not part.get("thought")
+                ),
+                None
+            )
+
+            if text is None:
+                raise RuntimeError("No non-thought content part found")
+
             scene_data = json.loads(text)
+
+            # Some responses wrap the object in a single-element
+            # array despite the instruction not to.
+            if isinstance(scene_data, list):
+                if not scene_data:
+                    raise RuntimeError("Gemma returned an empty JSON array")
+                scene_data = scene_data[0]
+
             return Scene.model_validate(scene_data)
 
         except Exception as error:
             raise RuntimeError(
                 f"Invalid Gemma Scene response: {error} | raw={data}"
             )
-
