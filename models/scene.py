@@ -1,5 +1,16 @@
 from typing import List, Optional
+
 from pydantic import BaseModel, Field
+
+
+class VoiceProfile(BaseModel):
+    type: Optional[str] = None
+    gender: Optional[str] = None
+    speed: float = Field(default=1.0, ge=0.1, le=4.0)
+    pitch: Optional[str] = None
+    tone: Optional[str] = None
+    emotion: Optional[str] = None
+    accent: Optional[str] = None
 
 
 class Subject(BaseModel):
@@ -20,6 +31,7 @@ class Dialogue(BaseModel):
     speaker: Optional[str] = None
     language: Optional[str] = None
     lip_sync: bool = True
+    voice: VoiceProfile = Field(default_factory=VoiceProfile)
 
 
 class Camera(BaseModel):
@@ -52,10 +64,10 @@ class Technical(BaseModel):
 
 
 class Scene(BaseModel):
-    subjects: List[Subject] = []
-    actions: List[Action] = []
-    dialogue: List[Dialogue] = []
-    camera: Camera = Camera()
-    environment: Environment = Environment()
-    animation: Animation = Animation()
-    technical: Technical = Technical()
+    subjects: List[Subject] = Field(default_factory=list)
+    actions: List[Action] = Field(default_factory=list)
+    dialogue: List[Dialogue] = Field(default_factory=list)
+    camera: Camera = Field(default_factory=Camera)
+    environment: Environment = Field(default_factory=Environment)
+    animation: Animation = Field(default_factory=Animation)
+    technical: Technical = Field(default_factory=Technical)

@@ -1,22 +1,60 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 
-from core.logging import configure_logging
-from api.routes.generate import router as generate_router
-from api.routes.health import router as health_router
-from api.routes.generators import router as generators_router
-from api.routes.history import router as history_router
-
-
-configure_logging()
+from models.scene import Scene
+from providers.mistral import MistralSceneParser
+from compiler.prompt_compiler import VideoPromptCompiler
 
 
 app = FastAPI(
     title="Video Prompt Engine",
     description="AI-powered technical video prompt generation engine",
-    version="0.8.0"
+    version="0.4.0"
 )
 
-app.include_router(health_router)
-app.include_router(generate_router)
-app.include_router(generators_router)
-app.include_router(history_router)
+
+class PromptRequest(BaseModel):
+    prompt: str
+
+
+class PromptResponse(BaseModel):
+    original_prompt: str
+    scene: Scene
+    technical_prompt: str
+
+
+parser = MistralSceneParser()
+compiler = VideoPromptCompiler()
+
+
+@app.get("/")
+def root():
+    return {
+        "name": "Video Prompt Engine",
+        "version": "0.4.0",
+        "status": "online"
+    }
+
+
+@app.post("/generate", response_model=PromptResponse)
+def generate_prompt(request: PromptRequest):
+    try:
+        scene = parser.parse(request.prompt)
+        technical_prompt = compiler.compile(scene)
+
+        return PromptResponse(
+            original_prompt=request.prompt,
+            scene=scene,
+            technical_prompt=technical_prompt
+        )
+
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+
+    except Exception as error:
+        raise HTTPException(status_code=500, detail=str(error))
+
+
+@app.get("/scene-schema")
+def scene_schema():
+    return Scene.model_json_schema()
