@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Video Prompt Engine</title>
+
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<style>
+  :root {
+    --bg: #0d0d10;
+    --panel: #17171c;
+    --panel-2: #1f1f26;
+    --border: #2a2a33;
+    --accent: #7c6cf6;
+    --accent-dim: #4d3fa8;
+    --text: #e8e8ec;
+    --text-dim: #9a9aa5;
+    --green: #4caf7d;
+    --red: #e5636e;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+
+  .app {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 24px 16px 64px;
+  }
+
+  h1 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0 0 4px;
+  }
+
+  .subtitle {
+    color: var(--text-dim);
+    font-size: 13px;
+    margin-bottom: 24px;
+  }
+
+  textarea {
+    width: 100%;
+    min-height: 90px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    padding: 12px;
+    font-size: 14px;
+    resize: vertical;
+    font-family: inherit;
+  }
+
+  textarea:focus, select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .row {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+
+  select {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 14px;
+  }
+
+  button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    flex: 1;
+    min-width: 140px;
+  }
+
+  button:disabled {
+    background: var(--accent-dim);
+    cursor: not-allowed;
+  }
+
+  .stages {
+    margin-top: 24px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 6px 16px;
+  }
+
+  .stage {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+    transition: opacity 0.2s ease;
+  }
+
+  .stage:last-child { border-bottom: none; }
+
+  .stage.pending { opacity: 0.4; }
+
+  .icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .check { color: var(--green); font-weight: 700; }
+  .dot { color: var(--text-dim); font-size: 18px; line-height: 0; }
+
+  .error-banner {
+    margin-top: 20px;
+    background: rgba(229, 99, 110, 0.12);
+    border: 1px solid var(--red);
+    color: var(--red);
+    padding: 12px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .result {
+    margin-top: 28px;
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+
+  .card h3 {
+    margin: 0 0 10px;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-dim);
+  }
+
+  pre {
+    background: var(--panel-2);
+    border-radius: 8px;
+    padding: 12px;
+    overflow-x: auto;
+    font-size: 12.5px;
+    line-height: 1.5;
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .scores {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
+  }
+
+  .score {
+    background: var(--panel-2);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+
+  .score .value {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .score .label {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+
+  .meta {
+    color: var(--text-dim);
+    font-size: 12px;
+    margin-top: 6px;
+  }
+
+  details summary {
+    cursor: pointer;
+    color: var(--accent);
+    font-size: 13px;
+    margin-top: 8px;
+  }
+</style>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useRef } = React;
+
+const STAGES = [
+  { key: "cache",      label: "Vérification du cache" },
+  { key: "parsing",    label: "Analyse de la scène (IA)" },
+  { key: "motion",     label: "Enrichissement du mouvement" },
+  { key: "audio",      label: "Enrichissement audio" },
+  { key: "compiling",  label: "Compilation du prompt technique" },
+  { key: "optimizing", label: "Optimisation du prompt" },
+  { key: "generator",  label: "Adaptation au générateur cible" },
+  { key: "evaluating", label: "Évaluation de la fidélité" },
+];
+
+const GENERATORS = ["generic", "veo", "kling", "runway"];
+
+function StageIcon({ status }) {
+  if (status === "done") return <span className="icon check">✓</span>;
+  if (status === "running") return <span className="icon"><span className="spinner"></span></span>;
+  return <span className="icon dot">•</span>;
+}
+
+function StageList({ stages }) {
+  return (
+    <div className="stages">
+      {STAGES.map(s => (
+        <div key={s.key} className={"stage " + (stages[s.key] || "pending")}>
+          <StageIcon status={stages[s.key] || "pending"} />
+          <span>{s.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ScoreCard({ evaluation }) {
+  return (
+    <div className="card">
+      <h3>Évaluation</h3>
+      <div className="scores">
+        <div className="score">
+          <div className="value">{evaluation.fidelity}</div>
+          <div className="label">Fidélité globale</div>
+        </div>
+        <div className="score">
+          <div className="value">{evaluation.fidelity_lexical}</div>
+          <div className="label">Fidélité lexicale</div>
+        </div>
+        <div className="score">
+          <div className="value">{evaluation.fidelity_semantic}</div>
+          <div className="label">Fidélité sémantique</div>
+        </div>
+        <div className="score">
+          <div className="value">{evaluation.quality}</div>
+          <div className="label">Qualité</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Result({ result }) {
+  return (
+    <div className="result">
+      <div className="card">
+        <h3>Prompt technique</h3>
+        <pre>{result.technical_prompt}</pre>
+      </div>
+
+      <div className="card">
+        <h3>Prompt optimisé</h3>
+        <pre>{result.optimized_prompt}</pre>
+      </div>
+
+      <div className="card">
+        <h3>Prompt pour {result.generator}</h3>
+        <pre>{result.generator_prompt}</pre>
+      </div>
+
+      <ScoreCard evaluation={result.evaluation} />
+
+      <div className="card">
+        <h3>Scène structurée</h3>
+        <details>
+          <summary>Voir le JSON complet</summary>
+          <pre>{JSON.stringify(result.scene, null, 2)}</pre>
+        </details>
+        <div className="meta">
+          request_id: {result.request_id} · {result.duration_seconds}s
+          {result.cached ? " · depuis le cache" : ""}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [prompt, setPrompt] = useState("");
+  const [generator, setGenerator] = useState("generic");
+  const [stages, setStages] = useState({});
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const esRef = useRef(null);
+
+  function markRemainingDone(fromIndex) {
+    setStages(prev => {
+      const next = { ...prev };
+      for (let i = fromIndex; i < STAGES.length; i++) {
+        next[STAGES[i].key] = "done";
+      }
+      return next;
+    });
+  }
+
+  function handleSubmit(e) {
+    e.preventDefault();
+
+    if (!prompt.trim() || isGenerating) return;
+
+    if (esRef.current) {
+      esRef.current.close();
+    }
+
+    setStages({});
+    setResult(null);
+    setError(null);
+    setIsGenerating(true);
+
+    const url = "/generate/stream?prompt=" + encodeURIComponent(prompt) +
+                "&generator=" + encodeURIComponent(generator);
+
+    const es = new EventSource(url);
+    esRef.current = es;
+
+    es.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+
+      if (data.stage === "complete") {
+        setResult(data.result);
+        setIsGenerating(false);
+        es.close();
+        return;
+      }
+
+      if (data.stage === "error") {
+        setError(data.detail);
+        setIsGenerating(false);
+        es.close();
+        return;
+      }
+
+      setStages(prev => ({ ...prev, [data.stage]: data.status }));
+
+      if (data.stage === "cache" && data.status === "done" && data.detail === "hit") {
+        markRemainingDone(1);
+      }
+    };
+
+    es.onerror = () => {
+      if (isGenerating) {
+        setError("Connexion au serveur interrompue.");
+      }
+      setIsGenerating(false);
+      es.close();
+    };
+  }
+
+  return (
+    <div className="app">
+      <h1>Video Prompt Engine</h1>
+      <div className="subtitle">Transforme une instruction en prompt vidéo technique, étape par étape.</div>
+
+      <form onSubmit={handleSubmit}>
+        <textarea
+          value={prompt}
+          onChange={e => setPrompt(e.target.value)}
+          placeholder="Ex: Un homme marche lentement vers la caméra dans une rue de nuit, plan large, pluie légère"
+        />
+        <div className="row">
+          <select value={generator} onChange={e => setGenerator(e.target.value)}>
+            {GENERATORS.map(g => <option key={g} value={g}>{g}</option>)}
+          </select>
+          <button type="submit" disabled={isGenerating}>
+            {isGenerating ? "Génération en cours…" : "Générer"}
+          </button>
+        </div>
+      </form>
+
+      {(isGenerating || Object.keys(stages).length > 0) && !error &&
+        <StageList stages={stages} />
+      }
+
+      {error && <div className="error-banner">{error}</div>}
+
+      {result && <Result result={result} />}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+
+</body>
+</html>
