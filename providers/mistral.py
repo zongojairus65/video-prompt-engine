@@ -56,7 +56,7 @@ class MistralSceneParser:
             ],
             response_format={"type": "json_object"},
             temperature=0.1,
-            max_tokens=1500,
+            max_tokens=3000,
         )
 
         content = response.choices[0].message.content
