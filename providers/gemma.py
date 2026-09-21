@@ -9,7 +9,7 @@ from providers.schema import SCENE_RESPONSE_SCHEMA
 class GemmaSceneParser:
     def __init__(self):
         self.api_key = os.getenv("GEMINI_API_KEY")
-        self.model = "gemma-4-26b-a4b-it"
+        self.model = "gemma-4-31b-it"
         self.url = (
             f"https://generativelanguage.googleapis.com/v1beta/models/"
             f"{self.model}:generateContent"
