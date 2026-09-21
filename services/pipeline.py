@@ -14,6 +14,18 @@ from generators.registry import GeneratorRegistry
 
 logger = get_logger(__name__)
 
+# VoiceProfile.speed is declared with ge=0.1, le=4.0 in models/scene.py,
+# but pydantic only enforces that on construction/validation — setting
+# .speed on an already-built instance does NOT re-validate (no
+# validate_assignment on the model). Since we apply overrides via direct
+# attribute mutation below, we clamp manually here instead of silently
+# trusting the caller.
+VOICE_SPEED_MIN = 0.1
+VOICE_SPEED_MAX = 4.0
+
+FPS_MIN = 1
+FPS_MAX = 240
+
 
 class VideoPromptPipeline:
 
@@ -27,25 +39,84 @@ class VideoPromptPipeline:
         self.generators = GeneratorRegistry()
         self.cache = PromptCache(ttl_seconds=3600)
 
-    def run(self, user_prompt: str, generator: str = "generic") -> dict:
+    def run(
+        self,
+        user_prompt: str,
+        generator: str = "generic",
+        technical_overrides: dict | None = None
+    ) -> dict:
         """Non-streaming entry point, kept for callers that just want
         the final result (e.g. the plain /generate route)."""
 
         result = None
 
-        for event in self.run_streaming(user_prompt, generator):
+        for event in self.run_streaming(
+            user_prompt,
+            generator,
+            technical_overrides
+        ):
             if event["stage"] == "complete":
                 result = event["result"]
 
         return result
 
-    def run_streaming(self, user_prompt: str, generator: str = "generic"):
+    def _apply_overrides(self, scene, technical_overrides: dict) -> None:
+        fps_override = technical_overrides.get("fps")
+        aspect_override = technical_overrides.get("aspect_ratio")
+        voice_speed_override = technical_overrides.get("voice_speed")
+
+        if fps_override is not None:
+            clamped = max(FPS_MIN, min(FPS_MAX, int(fps_override)))
+            scene.technical.fps = clamped
+
+        if aspect_override:
+            scene.technical.aspect_ratio = aspect_override
+
+        if voice_speed_override is not None:
+            clamped_speed = max(
+                VOICE_SPEED_MIN,
+                min(VOICE_SPEED_MAX, float(voice_speed_override))
+            )
+
+            # Applies to every dialogue line uniformly. This is only
+            # offered to the user when the prompt has dialogue but no
+            # speech-rate wording at all, so overriding all of them
+            # is consistent with "none of them had one specified".
+            # It cannot express different speeds per character — that
+            # still has to be written explicitly in the prompt text.
+            for dialogue in scene.dialogue:
+                dialogue.voice.speed = clamped_speed
+
+    def run_streaming(
+        self,
+        user_prompt: str,
+        generator: str = "generic",
+        technical_overrides: dict | None = None
+    ):
         """Yields one progress event per pipeline stage, then a final
         {"stage": "complete", "result": ...} event. `result["scene"]`
         is a Scene object (not dumped) so callers such as
         database.repository.save_generation can call .model_dump()
-        on it directly, matching what the plain run() path already
-        assumed before this method existed."""
+        on it directly.
+
+        technical_overrides, if given, is a dict with optional keys:
+        "fps" (int), "aspect_ratio" (str), "voice_speed" (float).
+        These are applied directly on the extracted Scene after
+        parsing, overriding whatever the LLM inferred or defaulted
+        to. Deliberately NOT done by asking the LLM to respect these
+        values via prompt instructions — an explicit user choice for
+        a numeric field must not depend on a model transcribing it
+        correctly.
+
+        Note: a cache hit skips extraction entirely and returns the
+        previously computed Scene as-is, overrides included from
+        whenever it was cached — a cache hit with different override
+        values than the original request will NOT re-apply new
+        overrides. This mirrors the existing cache design (keyed on
+        prompt + generator only) and is a known limitation, not
+        silently swallowed: flagged here for whoever touches this
+        next.
+        """
 
         request_id = str(uuid.uuid4())
         start = time.perf_counter()
@@ -92,6 +163,9 @@ class VideoPromptPipeline:
         yield {"stage": "audio", "status": "start"}
         scene = self.audio_engine.enrich(scene)
         yield {"stage": "audio", "status": "done"}
+
+        if technical_overrides:
+            self._apply_overrides(scene, technical_overrides)
 
         yield {"stage": "compiling", "status": "start"}
         technical_prompt = self.compiler.compile(scene)

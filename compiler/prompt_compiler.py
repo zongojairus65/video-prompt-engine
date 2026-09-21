@@ -67,6 +67,29 @@ class VideoPromptCompiler:
             if dialogue.lip_sync:
                 line += " — precise lip sync"
 
+            voice = dialogue.voice
+            voice_parts = [f"speed={voice.speed}x"]
+
+            if voice.gender:
+                voice_parts.append(f"gender={voice.gender}")
+
+            if voice.type:
+                voice_parts.append(f"type={voice.type}")
+
+            if voice.pitch:
+                voice_parts.append(f"pitch={voice.pitch}")
+
+            if voice.tone:
+                voice_parts.append(f"tone={voice.tone}")
+
+            if voice.emotion:
+                voice_parts.append(f"emotion={voice.emotion}")
+
+            if voice.accent:
+                voice_parts.append(f"accent={voice.accent}")
+
+            line += " — voice(" + ", ".join(voice_parts) + ")"
+
             lines.append(line)
 
         return "\n".join(lines)

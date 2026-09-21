@@ -63,7 +63,7 @@
     font-family: inherit;
   }
 
-  textarea:focus, select:focus {
+  textarea:focus, select:focus, input:focus {
     outline: none;
     border-color: var(--accent);
   }
@@ -100,6 +100,26 @@
   button:disabled {
     background: var(--accent-dim);
     cursor: not-allowed;
+  }
+
+  button.choice {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-weight: 500;
+    flex: none;
+    min-width: 0;
+    padding: 8px 14px;
+  }
+
+  button.choice.selected {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+  }
+
+  button.choice.secondary {
+    color: var(--text-dim);
   }
 
   .stages {
@@ -229,6 +249,51 @@
     font-size: 13px;
     margin-top: 8px;
   }
+
+  .clarify {
+    margin-top: 24px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+  }
+
+  .clarify-intro {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-bottom: 16px;
+  }
+
+  .question {
+    margin-bottom: 18px;
+  }
+
+  .question:last-of-type {
+    margin-bottom: 0;
+  }
+
+  .question-label {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .choice-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  input[type="number"], input[type="text"] {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 14px;
+    width: 110px;
+  }
 </style>
 </head>
 <body>
@@ -250,6 +315,36 @@ const STAGES = [
 ];
 
 const GENERATORS = ["generic", "veo", "kling", "runway"];
+
+const FPS_PRESETS = [24, 30, 60];
+const ASPECT_PRESETS = [
+  { value: "16:9", label: "16:9 (paysage)" },
+  { value: "9:16", label: "9:16 (portrait)" },
+  { value: "1:1", label: "1:1 (carré)" },
+  { value: "21:9", label: "21:9 (cinéma)" },
+];
+const SPEECH_RATE_PRESETS = [
+  { value: 0.7, label: "Lent (0.7x)" },
+  { value: 1.0, label: "Normal (1.0x)" },
+  { value: 1.3, label: "Rapide (1.3x)" },
+];
+
+// Détection déterministe sur le texte brut (pas d'appel IA) : on ne
+// pose une question que si le prompt ne mentionne vraiment rien.
+function detectMissing(prompt) {
+  const fpsPattern = /\b\d{1,3}\s*(fps|images?\s*par\s*seconde|ips)\b/i;
+  const aspectPattern = /\b\d{1,2}\s*:\s*\d{1,2}\b/;
+  const aspectKeywords = /(cin[ée]mascope|cin[ée]ma large|widescreen|portrait|paysage|format carr[ée]|vertical|horizontal)/i;
+
+  const hasDialogue = /["“”«»].{3,}["“”«»]/.test(prompt);
+  const speechRatePattern = /(d[ée]bit|vitesse de (la )?voix|parle (vite|lentement)|voix (rapide|lente)|speech rate|\b\d(\.\d)?x\b)/i;
+
+  return {
+    needFps: !fpsPattern.test(prompt),
+    needAspect: !aspectPattern.test(prompt) && !aspectKeywords.test(prompt),
+    needSpeechRate: hasDialogue && !speechRatePattern.test(prompt),
+  };
+}
 
 function StageIcon({ status }) {
   if (status === "done") return <span className="icon check">✓</span>;
@@ -331,6 +426,58 @@ function Result({ result }) {
   );
 }
 
+function ChoiceQuestion({ label, presets, value, onSelect, otherValue, onOtherChange, otherType, otherPlaceholder, otherMin, otherMax, otherStep }) {
+  const isOther = value === "__other__";
+  const isUnknown = value === null;
+
+  return (
+    <div className="question">
+      <div className="question-label">{label}</div>
+      <div className="choice-row">
+        {presets.map(p => (
+          <button
+            key={p.value}
+            type="button"
+            className={"choice" + (value === p.value ? " selected" : "")}
+            onClick={() => onSelect(p.value)}
+          >
+            {p.label}
+          </button>
+        ))}
+
+        <button
+          type="button"
+          className={"choice" + (isOther ? " selected" : "")}
+          onClick={() => onSelect("__other__")}
+        >
+          Autre
+        </button>
+
+        {isOther && (
+          <input
+            type={otherType}
+            inputMode={otherType === "number" ? "numeric" : "text"}
+            placeholder={otherPlaceholder}
+            value={otherValue}
+            min={otherMin}
+            max={otherMax}
+            step={otherStep}
+            onChange={e => onOtherChange(e.target.value)}
+          />
+        )}
+
+        <button
+          type="button"
+          className={"choice secondary" + (isUnknown ? " selected" : "")}
+          onClick={() => onSelect(null)}
+        >
+          Je ne sais pas
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [prompt, setPrompt] = useState("");
   const [generator, setGenerator] = useState("generic");
@@ -339,6 +486,14 @@ function App() {
   const [error, setError] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const esRef = useRef(null);
+
+  const [needClarify, setNeedClarify] = useState(null);
+  const [fpsChoice, setFpsChoice] = useState(null);
+  const [fpsOther, setFpsOther] = useState("");
+  const [aspectChoice, setAspectChoice] = useState(null);
+  const [aspectOther, setAspectOther] = useState("");
+  const [speedChoice, setSpeedChoice] = useState(null);
+  const [speedOther, setSpeedOther] = useState("");
 
   function markRemainingDone(fromIndex) {
     setStages(prev => {
@@ -350,11 +505,31 @@ function App() {
     });
   }
 
-  function handleSubmit(e) {
-    e.preventDefault();
+  function resolvedFps() {
+    if (fpsChoice === "__other__") {
+      const n = parseInt(fpsOther, 10);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    }
+    return fpsChoice;
+  }
 
-    if (!prompt.trim() || isGenerating) return;
+  function resolvedAspect() {
+    if (aspectChoice === "__other__") {
+      const trimmed = aspectOther.trim();
+      return trimmed.length > 0 ? trimmed : null;
+    }
+    return aspectChoice;
+  }
 
+  function resolvedSpeed() {
+    if (speedChoice === "__other__") {
+      const n = parseFloat(speedOther);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    }
+    return speedChoice;
+  }
+
+  function startGeneration(fpsOverride, aspectOverride, speedOverride) {
     if (esRef.current) {
       esRef.current.close();
     }
@@ -363,9 +538,22 @@ function App() {
     setResult(null);
     setError(null);
     setIsGenerating(true);
+    setNeedClarify(null);
 
-    const url = "/generate/stream?prompt=" + encodeURIComponent(prompt) +
-                "&generator=" + encodeURIComponent(generator);
+    let url = "/generate/stream?prompt=" + encodeURIComponent(prompt) +
+              "&generator=" + encodeURIComponent(generator);
+
+    if (fpsOverride !== null && fpsOverride !== undefined) {
+      url += "&fps=" + encodeURIComponent(fpsOverride);
+    }
+
+    if (aspectOverride) {
+      url += "&aspect_ratio=" + encodeURIComponent(aspectOverride);
+    }
+
+    if (speedOverride !== null && speedOverride !== undefined) {
+      url += "&voice_speed=" + encodeURIComponent(speedOverride);
+    }
 
     const es = new EventSource(url);
     esRef.current = es;
@@ -395,12 +583,37 @@ function App() {
     };
 
     es.onerror = () => {
-      if (isGenerating) {
-        setError("Connexion au serveur interrompue.");
-      }
+      setError("Connexion au serveur interrompue.");
       setIsGenerating(false);
       es.close();
     };
+  }
+
+  function handleSubmit(e) {
+    e.preventDefault();
+
+    if (!prompt.trim() || isGenerating) return;
+
+    const missing = detectMissing(prompt);
+
+    if (missing.needFps || missing.needAspect || missing.needSpeechRate) {
+      setFpsChoice(null);
+      setFpsOther("");
+      setAspectChoice(null);
+      setAspectOther("");
+      setSpeedChoice(null);
+      setSpeedOther("");
+      setResult(null);
+      setError(null);
+      setNeedClarify(missing);
+      return;
+    }
+
+    startGeneration(null, null, null);
+  }
+
+  function handleClarifyContinue() {
+    startGeneration(resolvedFps(), resolvedAspect(), resolvedSpeed());
   }
 
   return (
@@ -424,13 +637,74 @@ function App() {
         </div>
       </form>
 
-      {(isGenerating || Object.keys(stages).length > 0) && !error &&
+      {needClarify && (
+        <div className="clarify">
+          <div className="clarify-intro">
+            Quelques paramètres techniques essentiels ne sont pas précisés
+            dans ton prompt. Choisis une valeur, ou "Je ne sais pas" pour
+            laisser le système appliquer une valeur par défaut adaptée.
+          </div>
+
+          {needClarify.needFps && (
+            <ChoiceQuestion
+              label="Images par seconde (fps)"
+              presets={FPS_PRESETS.map(v => ({ value: v, label: v + " fps" }))}
+              value={fpsChoice}
+              onSelect={setFpsChoice}
+              otherValue={fpsOther}
+              onOtherChange={setFpsOther}
+              otherType="number"
+              otherPlaceholder="ex: 48"
+              otherMin="1"
+              otherMax="240"
+              otherStep="1"
+            />
+          )}
+
+          {needClarify.needAspect && (
+            <ChoiceQuestion
+              label="Format / ratio d'image"
+              presets={ASPECT_PRESETS}
+              value={aspectChoice}
+              onSelect={setAspectChoice}
+              otherValue={aspectOther}
+              onOtherChange={setAspectOther}
+              otherType="text"
+              otherPlaceholder="ex: 4:3"
+            />
+          )}
+
+          {needClarify.needSpeechRate && (
+            <ChoiceQuestion
+              label="Vitesse de parole des dialogues"
+              presets={SPEECH_RATE_PRESETS}
+              value={speedChoice}
+              onSelect={setSpeedChoice}
+              otherValue={speedOther}
+              onOtherChange={setSpeedOther}
+              otherType="number"
+              otherPlaceholder="ex: 1.5"
+              otherMin="0.1"
+              otherMax="4"
+              otherStep="0.1"
+            />
+          )}
+
+          <div className="row">
+            <button type="button" onClick={handleClarifyContinue}>
+              Continuer la génération
+            </button>
+          </div>
+        </div>
+      )}
+
+      {(isGenerating || Object.keys(stages).length > 0) && !error && !needClarify &&
         <StageList stages={stages} />
       }
 
       {error && <div className="error-banner">{error}</div>}
 
-      {result && <Result result={result} />}
+      {result && !needClarify && <Result result={result} />}
     </div>
   );
 }

@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -16,6 +18,9 @@ pipeline = VideoPromptPipeline()
 class PromptRequest(BaseModel):
     prompt: str
     generator: str = "generic"
+    fps: Optional[int] = None
+    aspect_ratio: Optional[str] = None
+    voice_speed: Optional[float] = None
 
 
 class PromptResponse(BaseModel):
@@ -34,9 +39,16 @@ def generate_prompt(request: PromptRequest):
         if not request.prompt.strip():
             raise ValueError("The video prompt cannot be empty.")
 
+        overrides = {
+            "fps": request.fps,
+            "aspect_ratio": request.aspect_ratio,
+            "voice_speed": request.voice_speed,
+        }
+
         result = pipeline.run(
             request.prompt,
-            request.generator
+            request.generator,
+            overrides
         )
 
         try:
