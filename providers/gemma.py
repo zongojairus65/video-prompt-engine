@@ -33,10 +33,29 @@ Extract:
 - animation
 - technical parameters
 - voice characteristics
+- constraints (explicit preservation/negative instructions)
 
 Preserve the user's original intent.
 Do not invent unnecessary story elements.
 If a field is unknown, omit it entirely instead of setting it to null.
+
+Return ONLY a single valid JSON object matching the Scene schema below.
+Do NOT wrap it in an array, even for a single scene.
+Do NOT include any reasoning, explanation, or markdown fences.
+
+Top-level fields (use exactly these keys):
+subjects, actions, dialogue, camera, environment, animation, technical, constraints
+
+For environment, extract location, time_of_day (e.g. day, night,
+dusk, dawn) and weather (e.g. rain, light rain, clear, fog, snow)
+whenever explicitly mentioned. Do not invent them if not mentioned.
+
+For constraints, extract explicit preservation or negative
+instructions as a list of short strings — things the user says to
+keep unchanged (identity, face, clothing, background, proportions)
+or to avoid (distortion, deformation, changing the scene). Only
+extract constraints the user actually stated; do not invent generic
+ones. If none are stated, return an empty list.
 """
 
         full_prompt = f"""
@@ -96,7 +115,7 @@ USER VIDEO INSTRUCTION:
             )
 
             if text is None:
-                raise RuntimeError("No non-thought content part found")
+                raise RuntimeError(f"No non-thought content part found | raw={data}")
 
             scene_data = json.loads(text)
 
@@ -104,7 +123,7 @@ USER VIDEO INSTRUCTION:
             # array despite the instruction not to.
             if isinstance(scene_data, list):
                 if not scene_data:
-                    raise RuntimeError("Gemma returned an empty JSON array")
+                    raise RuntimeError(f"Gemma returned an empty JSON array | raw={data}")
                 scene_data = scene_data[0]
 
             return Scene.model_validate(scene_data)

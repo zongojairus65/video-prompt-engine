@@ -15,6 +15,7 @@ class PromptOptimizer:
         sections.append(self._dialogue_constraints(scene))
         sections.append(self._camera_constraints(scene))
         sections.append(self._technical_constraints(scene))
+        sections.append(self._preservation_constraints(scene))
 
         return "\n".join(
             section for section in sections
@@ -97,4 +98,13 @@ class PromptOptimizer:
             f"aspect_ratio={technical.aspect_ratio}; "
             f"temporal_consistency="
             f"{technical.temporal_consistency}"
+        )
+
+    def _preservation_constraints(self, scene: Scene) -> str:
+        if not scene.constraints:
+            return ""
+
+        return (
+            "PRESERVATION CONSTRAINTS: "
+            + "; ".join(scene.constraints)
         )

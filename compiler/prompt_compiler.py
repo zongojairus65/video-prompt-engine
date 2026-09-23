@@ -13,6 +13,7 @@ class VideoPromptCompiler:
         sections.append(self._environment(scene))
         sections.append(self._animation(scene))
         sections.append(self._technical(scene))
+        sections.append(self._constraints(scene))
 
         return "\n".join(section for section in sections if section)
 
@@ -160,3 +161,14 @@ class VideoPromptCompiler:
             f"aspect_ratio={technical.aspect_ratio}, "
             f"temporal_consistency={technical.temporal_consistency}"
         )
+
+    def _constraints(self, scene: Scene) -> str:
+        if not scene.constraints:
+            return ""
+
+        lines = ["CONSTRAINTS:"]
+
+        for constraint in scene.constraints:
+            lines.append(f"- {constraint}")
+
+        return "\n".join(lines)

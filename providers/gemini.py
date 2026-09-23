@@ -15,10 +15,10 @@ GEMINI_MODELS = [
     "gemini-3.7-flash",
     "gemini-3.6-flash",
     "gemini-3.5-flash",
-    "gemini-3-flash-preview",
-    "gemini-2.5-flash",
     "gemini-3.5-flash-lite",
     "gemini-3.1-flash-lite",
+    "gemini-3-flash-preview",
+    "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
 ]
 
@@ -45,11 +45,18 @@ Do NOT wrap it in an array, even for a single scene.
 Do NOT include any reasoning, explanation, or markdown fences.
 
 Top-level fields (use exactly these keys):
-subjects, actions, dialogue, camera, environment, animation, technical
+subjects, actions, dialogue, camera, environment, animation, technical, constraints
 
 For environment, extract location, time_of_day (e.g. day, night,
 dusk, dawn) and weather (e.g. rain, light rain, clear, fog, snow)
 whenever explicitly mentioned. Do not invent them if not mentioned.
+
+For constraints, extract explicit preservation or negative
+instructions as a list of short strings — things the user says to
+keep unchanged (identity, face, clothing, background, proportions)
+or to avoid (distortion, deformation, changing the scene). Only
+extract constraints the user actually stated; do not invent generic
+ones. If none are stated, return an empty list.
 """
 
 

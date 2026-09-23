@@ -21,15 +21,17 @@ def _sse(data: dict) -> str:
 def generate_stream(
     prompt: str = Query(...),
     generator: str = Query("generic"),
+    mode: str = Query("text_to_video"),
     fps: Optional[int] = Query(None),
     aspect_ratio: Optional[str] = Query(None),
     voice_speed: Optional[float] = Query(None),
 ):
     """Same pipeline as POST /generate, but streamed stage-by-stage
     over Server-Sent Events so a frontend can animate real progress
-    instead of a generic spinner. fps/aspect_ratio/voice_speed, when
-    provided, override whatever the Scene parser inferred or
-    defaulted to."""
+    instead of a generic spinner. mode is "text_to_video" (default)
+    or "image_to_video" — see services.pipeline.run_streaming for
+    what that changes. fps/aspect_ratio/voice_speed, when provided,
+    override whatever the Scene parser inferred or defaulted to."""
 
     def event_generator():
         if not prompt.strip():
@@ -49,7 +51,8 @@ def generate_stream(
             for event in pipeline.run_streaming(
                 prompt,
                 generator,
-                overrides
+                overrides,
+                mode
             ):
                 if event["stage"] == "complete":
                     result = event["result"]

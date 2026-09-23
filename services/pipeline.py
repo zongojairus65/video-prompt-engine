@@ -6,6 +6,7 @@ from core.logging import get_logger
 from providers.router import SceneParserRouter
 from compiler.motion_engine import MotionEngine
 from compiler.audio_engine import AudioEngine
+from compiler.image_to_video import ensure_animation_framing
 from compiler.prompt_compiler import VideoPromptCompiler
 from compiler.prompt_optimizer import PromptOptimizer
 from evaluation.evaluation_engine import EvaluationEngine
@@ -26,6 +27,8 @@ VOICE_SPEED_MAX = 4.0
 FPS_MIN = 1
 FPS_MAX = 240
 
+VALID_MODES = ("text_to_video", "image_to_video")
+
 
 class VideoPromptPipeline:
 
@@ -43,7 +46,8 @@ class VideoPromptPipeline:
         self,
         user_prompt: str,
         generator: str = "generic",
-        technical_overrides: dict | None = None
+        technical_overrides: dict | None = None,
+        mode: str = "text_to_video"
     ) -> dict:
         """Non-streaming entry point, kept for callers that just want
         the final result (e.g. the plain /generate route)."""
@@ -53,7 +57,8 @@ class VideoPromptPipeline:
         for event in self.run_streaming(
             user_prompt,
             generator,
-            technical_overrides
+            technical_overrides,
+            mode
         ):
             if event["stage"] == "complete":
                 result = event["result"]
@@ -91,7 +96,8 @@ class VideoPromptPipeline:
         self,
         user_prompt: str,
         generator: str = "generic",
-        technical_overrides: dict | None = None
+        technical_overrides: dict | None = None,
+        mode: str = "text_to_video"
     ):
         """Yields one progress event per pipeline stage, then a final
         {"stage": "complete", "result": ...} event. `result["scene"]`
@@ -108,28 +114,44 @@ class VideoPromptPipeline:
         a numeric field must not depend on a model transcribing it
         correctly.
 
+        mode is "text_to_video" (default) or "image_to_video":
+        - "image_to_video": if the prompt doesn't already open with
+          recognizable animation/preservation framing (see
+          compiler.image_to_video), a standard template is prepended
+          before parsing. scene.constraints (preservation/negative
+          instructions) is extracted normally and rendered in both
+          the technical and optimized prompts.
+        - "text_to_video": scene.constraints is always cleared after
+          parsing, regardless of what the LLM extracted, so it never
+          reaches the compiled output. This is a deliberate hard
+          gate rather than "just don't render it" — the two states
+          must never mix silently.
+
         Note: a cache hit skips extraction entirely and returns the
         previously computed Scene as-is, overrides included from
         whenever it was cached — a cache hit with different override
         values than the original request will NOT re-apply new
-        overrides. This mirrors the existing cache design (keyed on
-        prompt + generator only) and is a known limitation, not
-        silently swallowed: flagged here for whoever touches this
-        next.
+        overrides. This mirrors the existing cache design and is a
+        known limitation, not silently swallowed: flagged here for
+        whoever touches this next.
         """
+
+        if mode not in VALID_MODES:
+            mode = "text_to_video"
 
         request_id = str(uuid.uuid4())
         start = time.perf_counter()
 
         yield {"stage": "cache", "status": "start"}
 
-        cached = self.cache.get(user_prompt, generator)
+        cached = self.cache.get(user_prompt, generator, mode)
 
         if cached is not None:
             logger.info(
-                "Cache hit | request_id=%s | generator=%s",
+                "Cache hit | request_id=%s | generator=%s | mode=%s",
                 request_id,
-                generator
+                generator,
+                mode
             )
 
             result = dict(cached)
@@ -147,13 +169,22 @@ class VideoPromptPipeline:
         yield {"stage": "cache", "status": "done", "detail": "miss"}
 
         logger.info(
-            "Cache miss | request_id=%s | generator=%s",
+            "Cache miss | request_id=%s | generator=%s | mode=%s",
             request_id,
-            generator
+            generator,
+            mode
         )
 
+        prompt_for_parsing = user_prompt
+        animation_framing_added = False
+
+        if mode == "image_to_video":
+            prompt_for_parsing, animation_framing_added = (
+                ensure_animation_framing(user_prompt)
+            )
+
         yield {"stage": "parsing", "status": "start"}
-        scene = self.parser.parse(user_prompt)
+        scene = self.parser.parse(prompt_for_parsing)
         yield {"stage": "parsing", "status": "done"}
 
         yield {"stage": "motion", "status": "start"}
@@ -163,6 +194,9 @@ class VideoPromptPipeline:
         yield {"stage": "audio", "status": "start"}
         scene = self.audio_engine.enrich(scene)
         yield {"stage": "audio", "status": "done"}
+
+        if mode != "image_to_video":
+            scene.constraints = []
 
         if technical_overrides:
             self._apply_overrides(scene, technical_overrides)
@@ -199,6 +233,8 @@ class VideoPromptPipeline:
             "request_id": request_id,
             "original_prompt": user_prompt,
             "generator": adapter.name,
+            "mode": mode,
+            "animation_framing_added": animation_framing_added,
             "scene": scene,
             "technical_prompt": technical_prompt,
             "optimized_prompt": optimized_prompt,
@@ -211,7 +247,8 @@ class VideoPromptPipeline:
         self.cache.set(
             user_prompt,
             generator,
-            result
+            result,
+            mode
         )
 
         logger.info(

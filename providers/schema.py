@@ -90,6 +90,10 @@ SCENE_RESPONSE_SCHEMA = {
                 "temporal_consistency": {"type": "string"},
             },
         },
+        "constraints": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
     },
     "required": [
         "subjects",
@@ -99,5 +103,6 @@ SCENE_RESPONSE_SCHEMA = {
         "environment",
         "animation",
         "technical",
+        "constraints",
     ],
 }

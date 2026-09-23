@@ -9,11 +9,12 @@ class PromptCache:
         self.ttl_seconds = ttl_seconds
         self._cache: dict[str, tuple[float, Any]] = {}
 
-    def _key(self, prompt: str, generator: str) -> str:
+    def _key(self, prompt: str, generator: str, mode: str) -> str:
         raw = json.dumps(
             {
                 "prompt": prompt.strip(),
                 "generator": generator.lower().strip(),
+                "mode": mode.lower().strip(),
             },
             sort_keys=True,
             ensure_ascii=False,
@@ -21,8 +22,8 @@ class PromptCache:
 
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
-    def get(self, prompt: str, generator: str):
-        key = self._key(prompt, generator)
+    def get(self, prompt: str, generator: str, mode: str = "text_to_video"):
+        key = self._key(prompt, generator, mode)
 
         entry = self._cache.get(key)
 
@@ -37,8 +38,8 @@ class PromptCache:
 
         return value
 
-    def set(self, prompt: str, generator: str, value: Any):
-        key = self._key(prompt, generator)
+    def set(self, prompt: str, generator: str, value: Any, mode: str = "text_to_video"):
+        key = self._key(prompt, generator, mode)
         self._cache[key] = (time.time(), value)
 
     def clear(self):

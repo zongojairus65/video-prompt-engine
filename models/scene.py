@@ -73,6 +73,7 @@ class Scene(BaseModel):
     environment: Environment = Field(default_factory=Environment)
     animation: Animation = Field(default_factory=Animation)
     technical: Technical = Field(default_factory=Technical)
+    constraints: List[str] = Field(default_factory=list)
 
     @model_validator(mode="before")
     @classmethod
@@ -85,7 +86,7 @@ class Scene(BaseModel):
         if not isinstance(data, dict):
             return data
 
-        list_fields = ("subjects", "actions", "dialogue")
+        list_fields = ("subjects", "actions", "dialogue", "constraints")
         object_fields = ("camera", "environment", "animation", "technical")
 
         for field in list_fields:

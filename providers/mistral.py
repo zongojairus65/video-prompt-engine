@@ -24,6 +24,12 @@ IMPORTANT:
   emotion, accent and language when explicitly provided.
 - Preserve explicit voice speed values such as 1.3x exactly.
 - Do not invent voice characteristics that the user did not specify.
+- For constraints, extract explicit preservation or negative
+  instructions as a list of short strings — things the user says
+  to keep unchanged (identity, face, clothing, background,
+  proportions) or to avoid (distortion, deformation, changing the
+  scene). Only extract constraints the user actually stated; do not
+  invent generic ones. If none are stated, return an empty list.
 - If something is unspecified, use neutral defaults.
 - Return ONLY valid JSON.
 - The result must be compatible with the Scene schema.
@@ -37,6 +43,7 @@ camera
 environment
 animation
 technical
+constraints
 """
 
 class MistralSceneParser:

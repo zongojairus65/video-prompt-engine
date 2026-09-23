@@ -18,6 +18,7 @@ pipeline = VideoPromptPipeline()
 class PromptRequest(BaseModel):
     prompt: str
     generator: str = "generic"
+    mode: str = "text_to_video"  # or "image_to_video"
     fps: Optional[int] = None
     aspect_ratio: Optional[str] = None
     voice_speed: Optional[float] = None
@@ -26,6 +27,8 @@ class PromptRequest(BaseModel):
 class PromptResponse(BaseModel):
     original_prompt: str
     generator: str
+    mode: str
+    animation_framing_added: bool
     scene: Scene
     technical_prompt: str
     optimized_prompt: str
@@ -48,7 +51,8 @@ def generate_prompt(request: PromptRequest):
         result = pipeline.run(
             request.prompt,
             request.generator,
-            overrides
+            overrides,
+            request.mode
         )
 
         try:

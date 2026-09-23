@@ -336,6 +336,7 @@ function detectMissing(prompt) {
   const aspectPattern = /\b\d{1,2}\s*:\s*\d{1,2}\b/;
   const aspectKeywords = /(cin[ée]mascope|cin[ée]ma large|widescreen|portrait|paysage|format carr[ée]|vertical|horizontal)/i;
 
+  // Dialogue probable : présence de guillemets contenant du texte.
   const hasDialogue = /["“”«»].{3,}["“”«»]/.test(prompt);
   const speechRatePattern = /(d[ée]bit|vitesse de (la )?voix|parle (vite|lentement)|voix (rapide|lente)|speech rate|\b\d(\.\d)?x\b)/i;
 
@@ -394,6 +395,17 @@ function ScoreCard({ evaluation }) {
 function Result({ result }) {
   return (
     <div className="result">
+      {result.mode === "image_to_video" && (
+        <div className="card">
+          <h3>Mode image → vidéo</h3>
+          <div className="meta">
+            {result.animation_framing_added
+              ? "Ton prompt ne commençait pas par une formulation d'animation reconnue — un gabarit standard a été ajouté automatiquement au début avant l'analyse."
+              : "Ton prompt commençait déjà par une formulation d'animation reconnue — aucun ajout n'a été fait."}
+          </div>
+        </div>
+      )}
+
       <div className="card">
         <h3>Prompt technique</h3>
         <pre>{result.technical_prompt}</pre>
@@ -426,6 +438,7 @@ function Result({ result }) {
   );
 }
 
+// Une question à choix : presets, "Autre" (champ libre), "Je ne sais pas".
 function ChoiceQuestion({ label, presets, value, onSelect, otherValue, onOtherChange, otherType, otherPlaceholder, otherMin, otherMax, otherStep }) {
   const isOther = value === "__other__";
   const isUnknown = value === null;
@@ -481,13 +494,15 @@ function ChoiceQuestion({ label, presets, value, onSelect, otherValue, onOtherCh
 function App() {
   const [prompt, setPrompt] = useState("");
   const [generator, setGenerator] = useState("generic");
+  const [mode, setMode] = useState("text_to_video");
   const [stages, setStages] = useState({});
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const esRef = useRef(null);
 
-  const [needClarify, setNeedClarify] = useState(null);
+  // Étape de clarification
+  const [needClarify, setNeedClarify] = useState(null); // null | {needFps, needAspect, needSpeechRate}
   const [fpsChoice, setFpsChoice] = useState(null);
   const [fpsOther, setFpsOther] = useState("");
   const [aspectChoice, setAspectChoice] = useState(null);
@@ -541,7 +556,8 @@ function App() {
     setNeedClarify(null);
 
     let url = "/generate/stream?prompt=" + encodeURIComponent(prompt) +
-              "&generator=" + encodeURIComponent(generator);
+              "&generator=" + encodeURIComponent(generator) +
+              "&mode=" + encodeURIComponent(mode);
 
     if (fpsOverride !== null && fpsOverride !== undefined) {
       url += "&fps=" + encodeURIComponent(fpsOverride);
@@ -627,6 +643,22 @@ function App() {
           onChange={e => setPrompt(e.target.value)}
           placeholder="Ex: Un homme marche lentement vers la caméra dans une rue de nuit, plan large, pluie légère"
         />
+        <div className="row">
+          <button
+            type="button"
+            className={"choice" + (mode === "text_to_video" ? " selected" : "")}
+            onClick={() => setMode("text_to_video")}
+          >
+            Texte → Vidéo
+          </button>
+          <button
+            type="button"
+            className={"choice" + (mode === "image_to_video" ? " selected" : "")}
+            onClick={() => setMode("image_to_video")}
+          >
+            Image → Vidéo
+          </button>
+        </div>
         <div className="row">
           <select value={generator} onChange={e => setGenerator(e.target.value)}>
             {GENERATORS.map(g => <option key={g} value={g}>{g}</option>)}
