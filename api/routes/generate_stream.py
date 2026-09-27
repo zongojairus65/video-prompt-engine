@@ -26,6 +26,7 @@ def generate_stream(
     fps: Optional[int] = Query(None),
     aspect_ratio: Optional[str] = Query(None),
     voice_speed: Optional[float] = Query(None),
+    voice_accent: Optional[str] = Query(None),
 ):
     """Same pipeline as POST /generate, but streamed stage-by-stage
     over Server-Sent Events so a frontend can animate real progress
@@ -34,8 +35,8 @@ def generate_stream(
     mode is "text_to_video" (default) or "image_to_video".
     prompt_language is "en" (default) or "fr" — controls only the
     structure/labels of the compiled prompts, never dialogue content.
-    fps/aspect_ratio/voice_speed, when provided, override whatever
-    the Scene parser inferred or defaulted to."""
+    fps/aspect_ratio/voice_speed/voice_accent, when provided,
+    override whatever the Scene parser inferred or defaulted to."""
 
     def event_generator():
         if not prompt.strip():
@@ -49,6 +50,7 @@ def generate_stream(
             "fps": fps,
             "aspect_ratio": aspect_ratio,
             "voice_speed": voice_speed,
+            "voice_accent": voice_accent,
         }
 
         try:

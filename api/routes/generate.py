@@ -23,6 +23,7 @@ class PromptRequest(BaseModel):
     fps: Optional[int] = None
     aspect_ratio: Optional[str] = None
     voice_speed: Optional[float] = None
+    voice_accent: Optional[str] = None
 
 
 class PromptResponse(BaseModel):
@@ -48,6 +49,7 @@ def generate_prompt(request: PromptRequest):
             "fps": request.fps,
             "aspect_ratio": request.aspect_ratio,
             "voice_speed": request.voice_speed,
+            "voice_accent": request.voice_accent,
         }
 
         result = pipeline.run(

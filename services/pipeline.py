@@ -72,6 +72,7 @@ class VideoPromptPipeline:
         fps_override = technical_overrides.get("fps")
         aspect_override = technical_overrides.get("aspect_ratio")
         voice_speed_override = technical_overrides.get("voice_speed")
+        voice_accent_override = technical_overrides.get("voice_accent")
 
         if fps_override is not None:
             clamped = max(FPS_MIN, min(FPS_MAX, int(fps_override)))
@@ -86,8 +87,21 @@ class VideoPromptPipeline:
                 min(VOICE_SPEED_MAX, float(voice_speed_override))
             )
 
+            # Applies to every dialogue line uniformly. This is only
+            # offered to the user when the prompt has dialogue but no
+            # speech-rate wording at all, so overriding all of them
+            # is consistent with "none of them had one specified".
+            # It cannot express different speeds per character — that
+            # still has to be written explicitly in the prompt text.
             for dialogue in scene.dialogue:
                 dialogue.voice.speed = clamped_speed
+
+        if voice_accent_override:
+            # Same uniform-application logic as voice_speed above:
+            # only offered when no dialogue line mentions an accent
+            # at all, so applying it to every line is consistent.
+            for dialogue in scene.dialogue:
+                dialogue.voice.accent = voice_accent_override.strip()
 
     def run_streaming(
         self,
@@ -108,11 +122,8 @@ class VideoPromptPipeline:
 
         prompt_language is "en" (default) or "fr" and controls ONLY
         the rendered structure of technical_prompt/optimized_prompt/
-        generator_prompt (section headers, key names like speed=/
-        vitesse=). It never touches scene.dialogue[i].text or
-        scene.dialogue[i].language — those are extracted content and
-        stay in whatever language the user actually wrote or spoke,
-        independent of this setting.
+        generator_prompt. It never touches scene.dialogue[i].text or
+        scene.dialogue[i].language.
         """
 
         if mode not in VALID_MODES:
