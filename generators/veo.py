@@ -1,6 +1,7 @@
 from models.scene import Scene
 from generators.base import VideoGeneratorAdapter
 from compiler.prompt_compiler import VideoPromptCompiler
+from compiler.i18n import get_labels, DEFAULT_LANGUAGE
 
 
 class VeoAdapter(VideoGeneratorAdapter):
@@ -9,11 +10,12 @@ class VeoAdapter(VideoGeneratorAdapter):
     def name(self) -> str:
         return "veo"
 
-    def compile(self, scene: Scene) -> str:
-        prompt = VideoPromptCompiler().compile(scene)
+    def compile(self, scene: Scene, language: str = DEFAULT_LANGUAGE) -> str:
+        labels = get_labels(language)
+        prompt = VideoPromptCompiler().compile(scene, language)
 
         return (
-            "VIDEO GENERATION TARGET: GOOGLE VEO\n"
-            "PRESERVE ALL USER-SPECIFIED ACTIONS AND DIALOGUE.\n"
+            f"{labels['video_target']}: GOOGLE VEO\n"
+            f"{labels['preserve_actions']}\n"
             + prompt
         )

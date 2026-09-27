@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from models.scene import Scene
+from compiler.i18n import DEFAULT_LANGUAGE
 
 
 class VideoGeneratorAdapter(ABC):
@@ -10,5 +11,5 @@ class VideoGeneratorAdapter(ABC):
         pass
 
     @abstractmethod
-    def compile(self, scene: Scene) -> str:
+    def compile(self, scene: Scene, language: str = DEFAULT_LANGUAGE) -> str:
         pass
