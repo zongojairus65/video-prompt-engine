@@ -19,6 +19,7 @@ class PromptRequest(BaseModel):
     prompt: str
     generator: str = "generic"
     mode: str = "text_to_video"  # or "image_to_video"
+    prompt_language: str = "en"  # or "fr" — structure only, never dialogue content
     fps: Optional[int] = None
     aspect_ratio: Optional[str] = None
     voice_speed: Optional[float] = None
@@ -28,6 +29,7 @@ class PromptResponse(BaseModel):
     original_prompt: str
     generator: str
     mode: str
+    prompt_language: str
     animation_framing_added: bool
     scene: Scene
     technical_prompt: str
@@ -52,7 +54,8 @@ def generate_prompt(request: PromptRequest):
             request.prompt,
             request.generator,
             overrides,
-            request.mode
+            request.mode,
+            request.prompt_language
         )
 
         try:

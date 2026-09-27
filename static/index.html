@@ -328,6 +328,11 @@ const SPEECH_RATE_PRESETS = [
   { value: 1.0, label: "Normal (1.0x)" },
   { value: 1.3, label: "Rapide (1.3x)" },
 ];
+const ACCENT_PRESETS = [
+  { value: "français", label: "Français" },
+  { value: "africain", label: "Africain" },
+  { value: "anglais", label: "Anglais" },
+];
 
 // Détection déterministe sur le texte brut (pas d'appel IA) : on ne
 // pose une question que si le prompt ne mentionne vraiment rien.
@@ -339,11 +344,13 @@ function detectMissing(prompt) {
   // Dialogue probable : présence de guillemets contenant du texte.
   const hasDialogue = /["“”«»].{3,}["“”«»]/.test(prompt);
   const speechRatePattern = /(d[ée]bit|vitesse de (la )?voix|parle (vite|lentement)|voix (rapide|lente)|speech rate|\b\d(\.\d)?x\b)/i;
+  const accentPattern = /accent/i;
 
   return {
     needFps: !fpsPattern.test(prompt),
     needAspect: !aspectPattern.test(prompt) && !aspectKeywords.test(prompt),
     needSpeechRate: hasDialogue && !speechRatePattern.test(prompt),
+    needAccent: hasDialogue && !accentPattern.test(prompt),
   };
 }
 
@@ -495,6 +502,7 @@ function App() {
   const [prompt, setPrompt] = useState("");
   const [generator, setGenerator] = useState("generic");
   const [mode, setMode] = useState("text_to_video");
+  const [promptLanguage, setPromptLanguage] = useState("en");
   const [stages, setStages] = useState({});
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
@@ -502,13 +510,15 @@ function App() {
   const esRef = useRef(null);
 
   // Étape de clarification
-  const [needClarify, setNeedClarify] = useState(null); // null | {needFps, needAspect, needSpeechRate}
+  const [needClarify, setNeedClarify] = useState(null); // null | {needFps, needAspect, needSpeechRate, needAccent}
   const [fpsChoice, setFpsChoice] = useState(null);
   const [fpsOther, setFpsOther] = useState("");
   const [aspectChoice, setAspectChoice] = useState(null);
   const [aspectOther, setAspectOther] = useState("");
   const [speedChoice, setSpeedChoice] = useState(null);
   const [speedOther, setSpeedOther] = useState("");
+  const [accentChoice, setAccentChoice] = useState(null);
+  const [accentOther, setAccentOther] = useState("");
 
   function markRemainingDone(fromIndex) {
     setStages(prev => {
@@ -544,7 +554,15 @@ function App() {
     return speedChoice;
   }
 
-  function startGeneration(fpsOverride, aspectOverride, speedOverride) {
+  function resolvedAccent() {
+    if (accentChoice === "__other__") {
+      const trimmed = accentOther.trim();
+      return trimmed.length > 0 ? trimmed : null;
+    }
+    return accentChoice;
+  }
+
+  function startGeneration(fpsOverride, aspectOverride, speedOverride, accentOverride) {
     if (esRef.current) {
       esRef.current.close();
     }
@@ -557,7 +575,8 @@ function App() {
 
     let url = "/generate/stream?prompt=" + encodeURIComponent(prompt) +
               "&generator=" + encodeURIComponent(generator) +
-              "&mode=" + encodeURIComponent(mode);
+              "&mode=" + encodeURIComponent(mode) +
+              "&prompt_language=" + encodeURIComponent(promptLanguage);
 
     if (fpsOverride !== null && fpsOverride !== undefined) {
       url += "&fps=" + encodeURIComponent(fpsOverride);
@@ -569,6 +588,10 @@ function App() {
 
     if (speedOverride !== null && speedOverride !== undefined) {
       url += "&voice_speed=" + encodeURIComponent(speedOverride);
+    }
+
+    if (accentOverride) {
+      url += "&voice_accent=" + encodeURIComponent(accentOverride);
     }
 
     const es = new EventSource(url);
@@ -612,24 +635,26 @@ function App() {
 
     const missing = detectMissing(prompt);
 
-    if (missing.needFps || missing.needAspect || missing.needSpeechRate) {
+    if (missing.needFps || missing.needAspect || missing.needSpeechRate || missing.needAccent) {
       setFpsChoice(null);
       setFpsOther("");
       setAspectChoice(null);
       setAspectOther("");
       setSpeedChoice(null);
       setSpeedOther("");
+      setAccentChoice(null);
+      setAccentOther("");
       setResult(null);
       setError(null);
       setNeedClarify(missing);
       return;
     }
 
-    startGeneration(null, null, null);
+    startGeneration(null, null, null, null);
   }
 
   function handleClarifyContinue() {
-    startGeneration(resolvedFps(), resolvedAspect(), resolvedSpeed());
+    startGeneration(resolvedFps(), resolvedAspect(), resolvedSpeed(), resolvedAccent());
   }
 
   return (
@@ -657,6 +682,22 @@ function App() {
             onClick={() => setMode("image_to_video")}
           >
             Image → Vidéo
+          </button>
+        </div>
+        <div className="row">
+          <button
+            type="button"
+            className={"choice" + (promptLanguage === "en" ? " selected" : "")}
+            onClick={() => setPromptLanguage("en")}
+          >
+            English
+          </button>
+          <button
+            type="button"
+            className={"choice" + (promptLanguage === "fr" ? " selected" : "")}
+            onClick={() => setPromptLanguage("fr")}
+          >
+            Français
           </button>
         </div>
         <div className="row">
@@ -719,6 +760,19 @@ function App() {
               otherMin="0.1"
               otherMax="4"
               otherStep="0.1"
+            />
+          )}
+
+          {needClarify.needAccent && (
+            <ChoiceQuestion
+              label="Accent des dialogues"
+              presets={ACCENT_PRESETS}
+              value={accentChoice}
+              onSelect={setAccentChoice}
+              otherValue={accentOther}
+              onOtherChange={setAccentOther}
+              otherType="text"
+              otherPlaceholder="ex: ivoirien, québécois..."
             />
           )}
 

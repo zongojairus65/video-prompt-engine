@@ -9,6 +9,7 @@ from compiler.audio_engine import AudioEngine
 from compiler.image_to_video import ensure_animation_framing
 from compiler.prompt_compiler import VideoPromptCompiler
 from compiler.prompt_optimizer import PromptOptimizer
+from compiler.i18n import SUPPORTED_LANGUAGES, DEFAULT_LANGUAGE
 from evaluation.evaluation_engine import EvaluationEngine
 from generators.registry import GeneratorRegistry
 
@@ -47,7 +48,8 @@ class VideoPromptPipeline:
         user_prompt: str,
         generator: str = "generic",
         technical_overrides: dict | None = None,
-        mode: str = "text_to_video"
+        mode: str = "text_to_video",
+        prompt_language: str = DEFAULT_LANGUAGE
     ) -> dict:
         """Non-streaming entry point, kept for callers that just want
         the final result (e.g. the plain /generate route)."""
@@ -58,7 +60,8 @@ class VideoPromptPipeline:
             user_prompt,
             generator,
             technical_overrides,
-            mode
+            mode,
+            prompt_language
         ):
             if event["stage"] == "complete":
                 result = event["result"]
@@ -83,12 +86,6 @@ class VideoPromptPipeline:
                 min(VOICE_SPEED_MAX, float(voice_speed_override))
             )
 
-            # Applies to every dialogue line uniformly. This is only
-            # offered to the user when the prompt has dialogue but no
-            # speech-rate wording at all, so overriding all of them
-            # is consistent with "none of them had one specified".
-            # It cannot express different speeds per character — that
-            # still has to be written explicitly in the prompt text.
             for dialogue in scene.dialogue:
                 dialogue.voice.speed = clamped_speed
 
@@ -97,7 +94,8 @@ class VideoPromptPipeline:
         user_prompt: str,
         generator: str = "generic",
         technical_overrides: dict | None = None,
-        mode: str = "text_to_video"
+        mode: str = "text_to_video",
+        prompt_language: str = DEFAULT_LANGUAGE
     ):
         """Yields one progress event per pipeline stage, then a final
         {"stage": "complete", "result": ...} event. `result["scene"]`
@@ -105,53 +103,38 @@ class VideoPromptPipeline:
         database.repository.save_generation can call .model_dump()
         on it directly.
 
-        technical_overrides, if given, is a dict with optional keys:
-        "fps" (int), "aspect_ratio" (str), "voice_speed" (float).
-        These are applied directly on the extracted Scene after
-        parsing, overriding whatever the LLM inferred or defaulted
-        to. Deliberately NOT done by asking the LLM to respect these
-        values via prompt instructions — an explicit user choice for
-        a numeric field must not depend on a model transcribing it
-        correctly.
+        mode is "text_to_video" (default) or "image_to_video" — see
+        compiler.image_to_video for what changes.
 
-        mode is "text_to_video" (default) or "image_to_video":
-        - "image_to_video": if the prompt doesn't already open with
-          recognizable animation/preservation framing (see
-          compiler.image_to_video), a standard template is prepended
-          before parsing. scene.constraints (preservation/negative
-          instructions) is extracted normally and rendered in both
-          the technical and optimized prompts.
-        - "text_to_video": scene.constraints is always cleared after
-          parsing, regardless of what the LLM extracted, so it never
-          reaches the compiled output. This is a deliberate hard
-          gate rather than "just don't render it" — the two states
-          must never mix silently.
-
-        Note: a cache hit skips extraction entirely and returns the
-        previously computed Scene as-is, overrides included from
-        whenever it was cached — a cache hit with different override
-        values than the original request will NOT re-apply new
-        overrides. This mirrors the existing cache design and is a
-        known limitation, not silently swallowed: flagged here for
-        whoever touches this next.
+        prompt_language is "en" (default) or "fr" and controls ONLY
+        the rendered structure of technical_prompt/optimized_prompt/
+        generator_prompt (section headers, key names like speed=/
+        vitesse=). It never touches scene.dialogue[i].text or
+        scene.dialogue[i].language — those are extracted content and
+        stay in whatever language the user actually wrote or spoke,
+        independent of this setting.
         """
 
         if mode not in VALID_MODES:
             mode = "text_to_video"
+
+        if prompt_language not in SUPPORTED_LANGUAGES:
+            prompt_language = DEFAULT_LANGUAGE
 
         request_id = str(uuid.uuid4())
         start = time.perf_counter()
 
         yield {"stage": "cache", "status": "start"}
 
-        cached = self.cache.get(user_prompt, generator, mode)
+        cached = self.cache.get(user_prompt, generator, mode, prompt_language)
 
         if cached is not None:
             logger.info(
-                "Cache hit | request_id=%s | generator=%s | mode=%s",
+                "Cache hit | request_id=%s | generator=%s | mode=%s | lang=%s",
                 request_id,
                 generator,
-                mode
+                mode,
+                prompt_language
             )
 
             result = dict(cached)
@@ -169,10 +152,11 @@ class VideoPromptPipeline:
         yield {"stage": "cache", "status": "done", "detail": "miss"}
 
         logger.info(
-            "Cache miss | request_id=%s | generator=%s | mode=%s",
+            "Cache miss | request_id=%s | generator=%s | mode=%s | lang=%s",
             request_id,
             generator,
-            mode
+            mode,
+            prompt_language
         )
 
         prompt_for_parsing = user_prompt
@@ -202,19 +186,20 @@ class VideoPromptPipeline:
             self._apply_overrides(scene, technical_overrides)
 
         yield {"stage": "compiling", "status": "start"}
-        technical_prompt = self.compiler.compile(scene)
+        technical_prompt = self.compiler.compile(scene, prompt_language)
         yield {"stage": "compiling", "status": "done"}
 
         yield {"stage": "optimizing", "status": "start"}
         optimized_prompt = self.optimizer.optimize(
             technical_prompt,
-            scene
+            scene,
+            prompt_language
         )
         yield {"stage": "optimizing", "status": "done"}
 
         yield {"stage": "generator", "status": "start"}
         adapter = self.generators.get(generator)
-        generator_prompt = adapter.compile(scene)
+        generator_prompt = adapter.compile(scene, prompt_language)
         yield {"stage": "generator", "status": "done"}
 
         yield {"stage": "evaluating", "status": "start"}
@@ -234,6 +219,7 @@ class VideoPromptPipeline:
             "original_prompt": user_prompt,
             "generator": adapter.name,
             "mode": mode,
+            "prompt_language": prompt_language,
             "animation_framing_added": animation_framing_added,
             "scene": scene,
             "technical_prompt": technical_prompt,
@@ -248,7 +234,8 @@ class VideoPromptPipeline:
             user_prompt,
             generator,
             result,
-            mode
+            mode,
+            prompt_language
         )
 
         logger.info(
