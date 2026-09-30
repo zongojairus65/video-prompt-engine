@@ -38,7 +38,17 @@ SCENE_RESPONSE_SCHEMA = {
                     "voice": {
                         "type": "object",
                         "properties": {
-                            "type": {"type": "string"},
+                            "type": {
+                                "type": "string",
+                                "enum": [
+                                    "baby",
+                                    "toddler",
+                                    "child",
+                                    "teenager",
+                                    "adult",
+                                    "elderly",
+                                ],
+                            },
                             "gender": {"type": "string"},
                             "speed": {"type": "number"},
                             "pitch": {"type": "string"},

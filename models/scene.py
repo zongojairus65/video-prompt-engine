@@ -1,6 +1,62 @@
 from typing import Any, List, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+# Closed vocabulary for voice.type, chosen only by described age — not
+# gender, not personality. Providers are instructed (see providers/*.py
+# system prompts) to use exactly one of these, and Gemini/Gemma also
+# enforce it structurally via providers/schema.py's enum constraint.
+# VOICE_TYPE_SYNONYMS is a fallback safety net for whatever still
+# slips through as free text (Mistral in particular has no hard
+# schema enforcement) — it normalizes common variants instead of
+# either crashing or silently keeping an inconsistent label like
+# "young girl voice" when a "baby" was described.
+VOICE_TYPES = ("baby", "toddler", "child", "teenager", "adult", "elderly")
+
+VOICE_TYPE_SYNONYMS = {
+    "baby": (
+        "baby", "infant", "newborn", "bébé", "bebe",
+        "nourrisson", "nouveau-né", "nouveau ne"
+    ),
+    "toddler": ("toddler", "bambin", "tout-petit", "tout petit"),
+    "child": (
+        "child", "kid", "young girl", "young boy", "little girl",
+        "little boy", "enfant", "fillette", "garçonnet", "garconnet"
+    ),
+    "teenager": ("teenager", "teen", "adolescent", "adolescente", "ado"),
+    "adult": ("adult", "man", "woman", "adulte", "homme", "femme"),
+    "elderly": (
+        "elderly", "old man", "old woman", "senior",
+        "âgé", "agé", "âgée", "agee", "personne âgée", "vieillard"
+    ),
+}
+
+
+def _normalize_voice_type(raw: str) -> str:
+    lowered = raw.strip().lower()
+
+    if lowered in VOICE_TYPES:
+        return lowered
+
+    # Check longer, more specific phrases first (e.g. "old woman"
+    # before the generic "woman") so a specific synonym in one
+    # category isn't shadowed by a shorter generic one in another.
+    all_matches = [
+        (synonym, canonical)
+        for canonical, synonyms in VOICE_TYPE_SYNONYMS.items()
+        for synonym in synonyms
+    ]
+    all_matches.sort(key=lambda pair: len(pair[0]), reverse=True)
+
+    for synonym, canonical in all_matches:
+        if synonym in lowered:
+            return canonical
+
+    # Unrecognized wording: kept as-is rather than dropped, so a
+    # genuinely new case is still visible in output instead of
+    # silently disappearing — but it won't match VOICE_TYPES, which
+    # is the signal that the vocabulary list may need an entry added.
+    return raw
 
 
 class VoiceProfile(BaseModel):
@@ -11,6 +67,14 @@ class VoiceProfile(BaseModel):
     tone: Optional[str] = None
     emotion: Optional[str] = None
     accent: Optional[str] = None
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def _normalize_type(cls, value):
+        if value is None:
+            return value
+
+        return _normalize_voice_type(str(value))
 
 
 class Subject(BaseModel):

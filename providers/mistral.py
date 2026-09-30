@@ -22,6 +22,11 @@ IMPORTANT:
   invent them if not mentioned.
 - For dialogue, extract voice type, gender, speed/rate, pitch, tone,
   emotion, accent and language when explicitly provided.
+- For voice type specifically, use EXACTLY ONE of these words, chosen
+  only by the character's described age — never by gender, personality,
+  or tone: baby, toddler, child, teenager, adult, elderly. Do not use
+  any other wording (not "young girl voice", not "infant voice", not
+  "kid's voice" — pick the single closest word from that exact list).
 - Preserve explicit voice speed values such as 1.3x exactly.
 - Do not invent voice characteristics that the user did not specify.
 - For constraints, extract explicit preservation or negative

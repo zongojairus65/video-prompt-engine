@@ -40,6 +40,12 @@ Extract:
 Never invent unnecessary story elements.
 Preserve the user's original intent.
 
+For voice type specifically, use EXACTLY ONE of these words, chosen
+only by the character's described age — never by gender, personality,
+or tone: baby, toddler, child, teenager, adult, elderly. Do not use
+any other wording (not "young girl voice", not "infant voice", not
+"kid's voice" — pick the single closest word from that exact list).
+
 Return ONLY a single valid JSON object matching the Scene schema below.
 Do NOT wrap it in an array, even for a single scene.
 Do NOT include any reasoning, explanation, or markdown fences.
